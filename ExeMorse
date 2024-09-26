@@ -1,0 +1,83 @@
+## Correr a partir de aqui:
+
+import librosa
+import numpy as np
+import argparse
+from pydub import AudioSegment
+from googletrans import Translator
+import os
+
+
+MORSE_CODE = {
+    'a': '.-', 'b': '-...', 'c': '-.-.', 'd': '-..', 'e': '.', 'f': '..-.', 'g': '--.', 'h': '....',
+    'i': '..', 'j': '.---', 'k': '-.-', 'l': '.-..', 'm': '--', 'n': '-.', 'o': '---', 'p': '.--.',
+    'q': '--.-', 'r': '.-.', 's': '...', 't': '-', 'u': '..-', 'v': '...-', 'w': '.--', 'x': '-..-',
+    'y': '-.--', 'z': '--..', '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+    '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '.': '.-.-.-', ',': '--..--',
+    '?': '..--..', "'": '.----.', '/': '-..-.', '(': '-.--.', ')': '-.--.-', '&': '.-...', ':': '---...',
+    ';': '-.-.-.', '=': '-...-', '+': '.-.-.', '-': '-....-', '_': '..--.-', '"': '.-..-.', '$': '...-..-',
+    '!': '-.-.--', '@': '.--.-.'
+}
+
+INVERSE_MORSE_CODE = {value: key for key, value in MORSE_CODE.items()}
+
+# Define el umbral de detección de la señal Morse
+umbral = 0.5
+
+
+def load_audio(file_path):
+    if file_path.endswith('.mp3'):
+        audio = AudioSegment.from_file(file_path, format='mp3')
+        file_path = os.path.splitext(file_path)[0] + '.wav'
+        audio.export(file_path, format='wav')
+    y, sr = librosa.load(file_path, sr=None, mono=True)
+    return y, sr
+
+
+def decode_message(morse_message):
+    message = []
+    for word in morse_message.split('   '):
+        word_message = []
+        for letter in word.split():
+            word_message.append(INVERSE_MORSE_CODE.get(letter))
+        message.append(''.join(word_message))
+    return ' '.join(message)
+
+
+def translate_message(message):
+    translator = Translator()
+    en_translation = translator.translate(message, src='es', dest='en').text
+    return f'Inglés: {en_translation}\nEspañol: {message}'
+
+
+def main(file_path):
+    y, sr = load_audio(file_path)
+    morse_audio = librosa.feature.mfcc(y=y, sr=sr)
+    morse_audio = np.mean(morse_audio, axis=1)
+    morse_audio = (morse_audio > umbral).astype(int)
+    morse_audio = ''.join([str(x) for x in morse_audio])
+
+    morse_message = ''
+    for i, x in enumerate(morse_audio):
+        if x == '1':
+            morse_message += '-'
+        else:
+            morse_message += '.'
+
+        if i < len(morse_audio) - 1 and morse_audio[i+1] != x:
+            morse_message += ' '
+
+    message = decode_message(morse_message)
+    translation = translate_message(message)
+
+    print(f'\nMensaje: {message}')
+    print(f'Traducción: {translation}')
+
+# Usar este para procesa el audio
+from google.colab import files
+
+filename = list(files.upload().keys())[0]
+# umbral = 0.5 # define el umbral
+# file_path = 'plantas.wav'
+# main(file_path)
+main(filename)
